@@ -5,6 +5,7 @@ import Data.Ord (comparing)
 import Data.Sequence (Seq (Empty))
 import Debug.Trace
 import Numeric
+import System.Environment (getArgs)
 
 -- Definição do caractere de nós que não são folhas
 -- Este caractere não pode estar presente no texto para compressão
@@ -98,33 +99,43 @@ incompByte code = charToBin (replicate (8 - length code) '0' ++ code)
 ---FUNÇÃO PRINCIPAL------------------------------------------------
 main :: IO ()
 main = do
-  content <- readFile "Texto.txt"
-  let huffTree = huffmanTree (huffmanQueue (sortTable (freqTable content)))
-  let huffDic = dicHuffman huffTree
-  let codiFile = codificar (content, huffDic)
-  let compacFile = compactar codiFile
-  -- Convertendo árvore de Huffman para String
-  let huffTreeData = show huffTree
-  -- Número de bits do texto original
-  let utilBits = chr (8 - mod (length codiFile) 8)
-  -- Escrevendo árvore de Huffman e texto compactado em arquivo
-  writeFile "compactado1.txt" (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ compacFile)
+  args <- getArgs
+  let nomeArquivo = head args
+  let inComp = last args
+  if inComp == "0"
+    then compress nomeArquivo
+    else
+      if inComp == "1"
+        then decompress nomeArquivo
+        else putStrLn "Parâmetro inválido. Use 0 para compressão e 1 para descompressão."
 
-  -- Lendo arquivo compactado
-  content <- readFile "compactado1.txt"
-  -- separar árvore do texto compactado
-  let (treeStr, subCont) = break (== '\n') content
-  -- reconstruir árvore da string
-  let hTree = read treeStr :: BinaryTree (Int, Char)
-  -- separar número de bits do texto original
-  let (readBits, encoded) = break (== '\n') (tail subCont)
-  -- Obtendo código binário compactado
-  let auxDescomp = descompactar (tail encoded)
-  let utilBits = ord (head readBits)
-  let codiDescomp = take (length auxDescomp - utilBits) auxDescomp
-  -- Decodificando texto compactado
-  let decompText = decodificar (codiDescomp, hTree)
-  putStrLn decompText
+-- content <- readFile "Texto.txt"
+-- let huffTree = huffmanTree (huffmanQueue (sortTable (freqTable content)))
+-- let huffDic = dicHuffman huffTree
+-- let codiFile = codificar (content, huffDic)
+-- let compacFile = compactar codiFile
+-- -- Convertendo árvore de Huffman para String
+-- let huffTreeData = show huffTree
+-- -- Número de bits do texto original
+-- let utilBits = chr (8 - mod (length codiFile) 8)
+-- -- Escrevendo árvore de Huffman e texto compactado em arquivo
+-- writeFile "compactado1.txt" (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ compacFile)
+
+-- -- Lendo arquivo compactado
+-- content <- readFile "compactado1.txt"
+-- -- separar árvore do texto compactado
+-- let (treeStr, subCont) = break (== '\n') content
+-- -- reconstruir árvore da string
+-- let hTree = read treeStr :: BinaryTree (Int, Char)
+-- -- separar número de bits do texto original
+-- let (readBits, encoded) = break (== '\n') (tail subCont)
+-- -- Obtendo código binário compactado
+-- let auxDescomp = descompactar (tail encoded)
+-- let utilBits = ord (head readBits)
+-- let codiDescomp = take (length auxDescomp - utilBits) auxDescomp
+-- -- Decodificando texto compactado
+-- let decompText = decodificar (codiDescomp, hTree)
+-- putStrLn decompText
 
 ------------------------------------------------------------------
 
@@ -141,10 +152,10 @@ compress nomeArquivo = do
   -- Número de bits do texto original
   let utilBits = chr (8 - mod (length codiFile) 8)
   -- Escrevendo árvore de Huffman e texto compactado em arquivo
-  writeFile (nomeArquivo ++ "-huff.txt") (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ compacFile)
+  writeFile (nomeArquivo ++ ".huff") (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ compacFile)
 
 decompress nomeArquivo = do
-  content <- readFile (nomeArquivo ++ ".txt")
+  content <- readFile (nomeArquivo ++ ".huff")
   -- separar árvore do texto compactado
   let (treeStr, subCont) = break (== '\n') content
   -- reconstruir árvore da string
