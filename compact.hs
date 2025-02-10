@@ -1,8 +1,10 @@
 import Data.Binary (Binary, decode)
+import Data.ByteString.Char8 qualified as B
 import Data.Char (chr, intToDigit, ord)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Sequence (Seq (Empty))
+import Data.Text qualified as T
 import Debug.Trace
 import Numeric
 import System.Environment (getArgs)
@@ -94,6 +96,12 @@ numToBin n = replicate (8 - length binary) '0' ++ binary
 incompByte :: String -> String
 incompByte code = charToBin (replicate (8 - length code) '0' ++ code)
 
+compactTree :: String -> String
+compactTree string = T.unpack (T.replace (T.pack ") (") (T.pack ")(") (T.replace (T.pack "(Leaf ") (T.pack "(L") (T.replace (T.pack "(Node ") (T.pack "(N") (T.pack string))))
+
+descompTree :: String -> [Char]
+descompTree string = T.unpack (T.replace (T.pack ")(") (T.pack ") (") (T.replace (T.pack "(L") (T.pack "(Leaf ") (T.replace (T.pack "(N") (T.pack "(Node ") (T.pack string))))
+
 --------------------------------------------------------------------
 
 ---FUNÇÃO PRINCIPAL------------------------------------------------
@@ -102,12 +110,12 @@ main = do
   args <- getArgs
   let nomeArquivo = head args
   let inComp = last args
-  if inComp == "0"
+  if inComp == "E"
     then compress nomeArquivo
     else
-      if inComp == "1"
+      if inComp == "D"
         then decompress nomeArquivo
-        else putStrLn "Parâmetro inválido. Use 0 para compressão e 1 para descompressão."
+        else putStrLn "Parâmetro inválido. Use E para encriptação/compressão e D para descompressão."
 
 -- content <- readFile "Texto.txt"
 -- let huffTree = huffmanTree (huffmanQueue (sortTable (freqTable content)))
@@ -141,38 +149,47 @@ main = do
 
 -- FUNÇÕES-DE-COMPRESSÃO------------------------------------------------
 
-compress nomeArquivo = do
-  content <- readFile (nomeArquivo ++ ".txt")
+compress dsArquivo = do
+  byteString <- B.readFile dsArquivo
+  let content = B.unpack byteString
+  let (nomeArquivo, tpArquivo) = break (== '.') dsArquivo
   let huffTree = huffmanTree (huffmanQueue (sortTable (freqTable content)))
   let huffDic = dicHuffman huffTree
   let codiFile = codificar (content, huffDic)
   let compacFile = compactar codiFile
   -- Convertendo árvore de Huffman para String
-  let huffTreeData = show huffTree
+  let huffTreeString = show huffTree
+  let huffTreeData = compactTree huffTreeString
   -- Número de bits do texto original
   let utilBits = chr (8 - mod (length codiFile) 8)
   -- Escrevendo árvore de Huffman e texto compactado em arquivo
-  writeFile (nomeArquivo ++ ".huff") (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ compacFile)
+  writeFile (nomeArquivo ++ ".huff") (huffTreeData ++ "\n" ++ [utilBits] ++ "\n" ++ tpArquivo ++ "\n" ++ compacFile)
 
-decompress nomeArquivo = do
-  content <- readFile (nomeArquivo ++ ".huff")
+decompress dsArquivo = do
+  content <- readFile dsArquivo
+  let nomeArquivo = take (length dsArquivo - 5) dsArquivo
   -- separar árvore do texto compactado
-  let (treeStr, subCont) = break (== '\n') content
+  let (treeComp, subCont) = break (== '\n') content
+  let treeFull = descompTree treeComp
   -- reconstruir árvore da string
-  let hTree = read treeStr :: BinaryTree (Int, Char)
+  let hTree = read treeFull :: BinaryTree (Int, Char)
   -- separar número de bits do texto original
-  let (readBits, encoded) = break (== '\n') (tail subCont)
+  let (readBits, aux) = break (== '\n') (tail subCont)
+  -- Separa tipo de arquivo
+  let (tpArquivo, encoded) = break (== '\n') (tail aux)
   -- Obtendo código binário compactado
   let auxDescomp = descompactar (tail encoded)
+  -- Número de bits do texto original
   let utilBits = ord (head readBits)
   let codiDescomp = take (length auxDescomp - utilBits) auxDescomp
   -- Decodificando texto compactado
   let decompText = decodificar (codiDescomp, hTree)
-  writeFile (nomeArquivo ++ "-descomp.txt") decompText
+  let decompTextByte = B.pack decompText
+  B.writeFile (nomeArquivo ++ "-descomp" ++ tpArquivo) decompTextByte
 
 -- CONSTRUIR TABELA DE FREQUÊNCIA ORDENADA--------------------------------------
 -- Construir tabela de frequência das letras da String de entrada
-freqTable content = [(length $ filter (== c) content, c) | c <- content `intersect` [chr i | i <- [1 .. 256]]]
+freqTable content = [(length $ filter (== c) content, c) | c <- content `intersect` [chr i | i <- [0 .. 256]]]
 
 -- Construir fila ordenada pela frequência dos caracteres
 sortTable freqTable = sortBy (comparing fst) [(c, f) | (c, f) <- freqTable]
@@ -223,7 +240,7 @@ decodificar (text, htree)
 
 decodificar' :: String -> BinaryTree (Int, Char) -> (Char, String)
 decodificar' text node
-  --   | null text = (' ', "")
+  | null text = (' ', "")
   | isLeaf node = (snd (getValue node), text)
   | otherwise = decodificar' (tail text) (if head text == '0' then getLeft node else getRight node)
 
